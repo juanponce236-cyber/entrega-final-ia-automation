@@ -1,0 +1,1292 @@
+{
+  "name": "Flujo A - Generacion",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "authentication": "airtableTokenApi",
+        "baseId": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "triggerField": "Estado",
+        "additionalFields": {
+          "formula": "{Estado} = 'Generando'"
+        }
+      },
+      "id": "aaaa4130-788c-48eb-a39d-4359a90a2eb9",
+      "name": "1. Trigger: Idea Semilla lista",
+      "type": "n8n-nodes-base.airtableTrigger",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        752
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tblyoVfyo5PsP7iji/viwxM4P8AQp8RGOop?blocks=hide",
+          "mode": "url"
+        },
+        "table": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tblyoVfyo5PsP7iji/viwxM4P8AQp8RGOop?blocks=hide",
+          "mode": "url"
+        },
+        "filterByFormula": "={Activo} = TRUE()",
+        "options": {}
+      },
+      "id": "37f54381-22f6-4286-b87d-ab80d414f88e",
+      "name": "2. Buscar directrices (RAG)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1632,
+        736
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta la Idea Semilla del disparador con las directrices recuperadas (RAG)\nconst ideaSemilla = $('1. Trigger: Idea Semilla lista').first().json['Idea Semilla'];\nconst recordId = $('1. Trigger: Idea Semilla lista').first().json.id;\n\nconst directrices = items.map(item => {\n  const f = item.json.fields || item.json;\n  return `- ${f['Tema']}: ${f['Directriz']}`;\n}).join('\\n');\n\nconst prompt = `Sos un redactor de marketing para la marca. Seguí ESTRICTAMENTE estas directrices:\\n${directrices}\\n\\nRedactá un posteo de LinkedIn breve y profesional sobre la siguiente idea:\\n\"${ideaSemilla}\"\\n\\nDevolvé solo el texto del posteo, sin explicaciones adicionales.`;\n\nreturn [{ json: { prompt, recordId, ideaSemilla } }];"
+      },
+      "id": "fbaf571f-1994-4b39-b3c8-1937a6c672b1",
+      "name": "3. Armar prompt (Idea Semilla + Directrices)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.prompt }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "df2edf19-075c-4c63-b9a0-81e1b833e08f",
+      "name": "4. Nodo IA (genera el contenido)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [
+        2048,
+        720
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "4eyGWeoyo0594sTE",
+          "name": "n8n free OpenAI API credits"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Si preferís usar Claude en vez de GPT, reemplazá este nodo por uno HTTP Request a https://api.anthropic.com/v1/messages (headers x-api-key y anthropic-version) o por el nodo nativo de Anthropic si tu versión de n8n lo tiene."
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "table": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ],
+          "value": {
+            "id": "={{ $('3. Armar prompt (Idea Semilla + Directrices)').item.json.recordId }}",
+            "Contenido Generado": "={{ $json.message?.content || $json.text }}",
+            "Estado": "Pendiente Aprobación"
+          }
+        },
+        "options": {}
+      },
+      "id": "b8050dc3-5c9e-4d7f-bea8-fec7ffd16852",
+      "name": "5. Guardar borrador + pausa HITL",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2368,
+        704
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "juanponce236@gmail.com",
+        "subject": "=Nuevo contenido esperando aprobación: {{ $('3. Armar prompt (Idea Semilla + Directrices)').item.json.ideaSemilla }}",
+        "message": "=Hay un nuevo borrador listo para revisar en Airtable.\n\nIdea Semilla: {{ $('3. Armar prompt (Idea Semilla + Directrices)').item.json.ideaSemilla }}\n\nEntrá a Airtable, revisá la columna 'Contenido Generado' y tildá el checkbox 'Aprobado' si está OK para publicar.",
+        "options": {}
+      },
+      "id": "99d63f0c-bd8c-4e46-9b2c-59e72f9d0526",
+      "name": "6. Avisar para revisión (Slack/Email)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        688
+      ],
+      "webhookId": "fc1ff959-0ddd-4e3d-8ec9-61c87d59cd00",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CcL0Ag12jpJglVBK",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "649ae6c3-09b5-42d5-b04b-b86a7e7068e0",
+              "leftValue": "={{ Boolean($json.fields && $json.fields['Idea Semilla'] && $json.fields['Idea Semilla'].toString().trim().length > 0) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1360,
+        752
+      ],
+      "id": "70b0d6d2-3d2c-46f4-9c30-900d42256abb",
+      "name": "validar datos completos"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app7aBgH53gjQv5EC",
+          "mode": "list",
+          "cachedResultName": "Directrices_Marca.csv",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvLu5cIka61tTYe",
+          "mode": "list",
+          "cachedResultName": "Errores",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC/tblvLu5cIka61tTYe"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Resuelto": false,
+            "Revisado": false,
+            "Nombre del Error": "Datos incompletos",
+            "Descripción": "Falta la Idea Semilla en el registro",
+            "Nodo": "1. Trigger",
+            "Mensaje": "Falta la Idea Semilla en el registro",
+            "Idea Semilla Afectada": "={{ $json.fields && $json.fields['Idea Semilla'] ? $json.fields['Idea Semilla'] : 'vacío' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nombre del Error",
+              "displayName": "Nombre del Error",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Descripción",
+              "displayName": "Descripción",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de Detección",
+              "displayName": "Fecha de Detección",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Gravedad",
+              "displayName": "Gravedad",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Baja",
+                  "value": "Baja"
+                },
+                {
+                  "name": "Media",
+                  "value": "Media"
+                },
+                {
+                  "name": "Alta",
+                  "value": "Alta"
+                },
+                {
+                  "name": "Crítica",
+                  "value": "Crítica"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Resuelto",
+              "displayName": "Resuelto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Notas Adicionales",
+              "displayName": "Notas Adicionales",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Nodo",
+              "displayName": "Nodo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Mensaje",
+              "displayName": "Mensaje",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Idea Semilla Afectada",
+              "displayName": "Idea Semilla Afectada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Revisado",
+              "displayName": "Revisado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1472,
+        928
+      ],
+      "id": "418cb5f4-ec16-4cd4-9961-83e8c5dd2b66",
+      "name": "Log Error - Datos Faltantes",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app7aBgH53gjQv5EC",
+          "mode": "list",
+          "cachedResultName": "Directrices_Marca.csv",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvLu5cIka61tTYe",
+          "mode": "list",
+          "cachedResultName": "Errores",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC/tblvLu5cIka61tTYe"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Resuelto": false,
+            "Revisado": false,
+            "Nombre del Error": "Fallo de API",
+            "Descripción": "={{ $json.error }}",
+            "Nodo": "2. Buscar directrices",
+            "Mensaje": "={{ $json.error }}",
+            "Idea Semilla Afectada": "={{ $json.fields && $json.fields['Idea Semilla'] ? $json.fields['Idea Semilla'] : 'vacío' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nombre del Error",
+              "displayName": "Nombre del Error",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Descripción",
+              "displayName": "Descripción",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de Detección",
+              "displayName": "Fecha de Detección",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Gravedad",
+              "displayName": "Gravedad",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Baja",
+                  "value": "Baja"
+                },
+                {
+                  "name": "Media",
+                  "value": "Media"
+                },
+                {
+                  "name": "Alta",
+                  "value": "Alta"
+                },
+                {
+                  "name": "Crítica",
+                  "value": "Crítica"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Resuelto",
+              "displayName": "Resuelto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Notas Adicionales",
+              "displayName": "Notas Adicionales",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Nodo",
+              "displayName": "Nodo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Mensaje",
+              "displayName": "Mensaje",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Idea Semilla Afectada",
+              "displayName": "Idea Semilla Afectada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Revisado",
+              "displayName": "Revisado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1744,
+        928
+      ],
+      "id": "69415e57-fb61-4fab-ae32-3d65e8562583",
+      "name": "Log Error - RAG",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app7aBgH53gjQv5EC",
+          "mode": "list",
+          "cachedResultName": "Directrices_Marca.csv",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvLu5cIka61tTYe",
+          "mode": "list",
+          "cachedResultName": "Errores",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC/tblvLu5cIka61tTYe"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Resuelto": false,
+            "Revisado": false,
+            "Nombre del Error": "Fallo de API",
+            "Descripción": "={{ $json.error }}",
+            "Nodo": "4. Nodo IA",
+            "Mensaje": "={{ $json.error }}",
+            "Idea Semilla Afectada": "={{ $json.fields && $json.fields['Idea Semilla'] ? $json.fields['Idea Semilla'] : 'vacío' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nombre del Error",
+              "displayName": "Nombre del Error",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Descripción",
+              "displayName": "Descripción",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de Detección",
+              "displayName": "Fecha de Detección",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Gravedad",
+              "displayName": "Gravedad",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Baja",
+                  "value": "Baja"
+                },
+                {
+                  "name": "Media",
+                  "value": "Media"
+                },
+                {
+                  "name": "Alta",
+                  "value": "Alta"
+                },
+                {
+                  "name": "Crítica",
+                  "value": "Crítica"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Resuelto",
+              "displayName": "Resuelto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Notas Adicionales",
+              "displayName": "Notas Adicionales",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Nodo",
+              "displayName": "Nodo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Mensaje",
+              "displayName": "Mensaje",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Idea Semilla Afectada",
+              "displayName": "Idea Semilla Afectada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Revisado",
+              "displayName": "Revisado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        2192,
+        928
+      ],
+      "id": "2f5c3433-abce-430e-bb8e-adf1e8344afc",
+      "name": "Log Error - IA",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app7aBgH53gjQv5EC",
+          "mode": "list",
+          "cachedResultName": "Directrices_Marca.csv",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvLu5cIka61tTYe",
+          "mode": "list",
+          "cachedResultName": "Errores",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC/tblvLu5cIka61tTYe"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Resuelto": false,
+            "Revisado": false,
+            "Nombre del Error": "Fallo de API",
+            "Descripción": "={{ $json.error }}",
+            "Nodo": "5. Guardar borrador",
+            "Mensaje": "={{ $json.error }}",
+            "Idea Semilla Afectada": "={{ $json.fields && $json.fields['Idea Semilla'] ? $json.fields['Idea Semilla'] : 'vacío' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nombre del Error",
+              "displayName": "Nombre del Error",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Descripción",
+              "displayName": "Descripción",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de Detección",
+              "displayName": "Fecha de Detección",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Gravedad",
+              "displayName": "Gravedad",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Baja",
+                  "value": "Baja"
+                },
+                {
+                  "name": "Media",
+                  "value": "Media"
+                },
+                {
+                  "name": "Alta",
+                  "value": "Alta"
+                },
+                {
+                  "name": "Crítica",
+                  "value": "Crítica"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Resuelto",
+              "displayName": "Resuelto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Notas Adicionales",
+              "displayName": "Notas Adicionales",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Nodo",
+              "displayName": "Nodo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Mensaje",
+              "displayName": "Mensaje",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Idea Semilla Afectada",
+              "displayName": "Idea Semilla Afectada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Revisado",
+              "displayName": "Revisado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        2480,
+        912
+      ],
+      "id": "af70aa3c-9125-4a65-baaa-9496d9e37dd1",
+      "name": "Log Error - Guardar",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app7aBgH53gjQv5EC",
+          "mode": "list",
+          "cachedResultName": "Directrices_Marca.csv",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblvLu5cIka61tTYe",
+          "mode": "list",
+          "cachedResultName": "Errores",
+          "cachedResultUrl": "https://airtable.com/app7aBgH53gjQv5EC/tblvLu5cIka61tTYe"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Resuelto": false,
+            "Revisado": false,
+            "Nombre del Error": "Fallo de API",
+            "Descripción": "={{ $json.error }}",
+            "Nodo": "6. Avisar por email",
+            "Mensaje": "={{ $json.error }}",
+            "Idea Semilla Afectada": "={{ $json.fields && $json.fields['Idea Semilla'] ? $json.fields['Idea Semilla'] : 'vacío' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nombre del Error",
+              "displayName": "Nombre del Error",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Descripción",
+              "displayName": "Descripción",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha de Detección",
+              "displayName": "Fecha de Detección",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Gravedad",
+              "displayName": "Gravedad",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Baja",
+                  "value": "Baja"
+                },
+                {
+                  "name": "Media",
+                  "value": "Media"
+                },
+                {
+                  "name": "Alta",
+                  "value": "Alta"
+                },
+                {
+                  "name": "Crítica",
+                  "value": "Crítica"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Resuelto",
+              "displayName": "Resuelto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Notas Adicionales",
+              "displayName": "Notas Adicionales",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Nodo",
+              "displayName": "Nodo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Mensaje",
+              "displayName": "Mensaje",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Idea Semilla Afectada",
+              "displayName": "Idea Semilla Afectada",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Revisado",
+              "displayName": "Revisado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        2752,
+        912
+      ],
+      "id": "799be3f4-d135-4f77-9f59-cf1ecefb85a3",
+      "name": "Log Error - Email",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1. Trigger: Idea Semilla lista": {
+      "main": [
+        [
+          {
+            "node": "validar datos completos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validar datos completos": {
+      "main": [
+        [
+          {
+            "node": "2. Buscar directrices (RAG)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error - Datos Faltantes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Buscar directrices (RAG)": {
+      "main": [
+        [
+          {
+            "node": "3. Armar prompt (Idea Semilla + Directrices)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error - RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Armar prompt (Idea Semilla + Directrices)": {
+      "main": [
+        [
+          {
+            "node": "4. Nodo IA (genera el contenido)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Nodo IA (genera el contenido)": {
+      "main": [
+        [
+          {
+            "node": "5. Guardar borrador + pausa HITL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error - IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Guardar borrador + pausa HITL": {
+      "main": [
+        [
+          {
+            "node": "6. Avisar para revisión (Slack/Email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error - Guardar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Avisar para revisión (Slack/Email)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Log Error - Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f9ac74fcb145db4332a4ce6697bd4628627a99a56ad03a88dae240bc06a4a1a4"
+  }
+}

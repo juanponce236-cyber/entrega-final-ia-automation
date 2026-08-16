@@ -1,0 +1,171 @@
+{
+  "name": "Flujo B - Aprobacion y Publicacion",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "authentication": "airtableTokenApi",
+        "baseId": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "tableId": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "triggerField": "Aprobado",
+        "additionalFields": {
+          "formula": "AND({Aprobado} = TRUE(), {Estado} = 'Pendiente Aprobación')"
+        }
+      },
+      "id": "fde5bd2e-9c53-4aff-91d6-2ae5b01501b6",
+      "name": "7. Trigger: fila marcada como Aprobado",
+      "type": "n8n-nodes-base.airtableTrigger",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        1136
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.fields.Aprobado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "128a11a1-328a-4a33-be43-cbed2a21a44d"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d831ef5e-1298-4ca0-9c53-ffe1ef70c6c1",
+      "name": "8. Filtro final: ¿Aprobado = true?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1376,
+        1136
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "table": {
+          "__rl": true,
+          "value": "https://airtable.com/app7aBgH53gjQv5EC/tbljSB4HyCibrShR8/viwlWjgTWiouMO1M8?blocks=hide",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ],
+          "value": {
+            "id": "={{ $json.id }}",
+            "Estado": "Publicado"
+          }
+        },
+        "options": {}
+      },
+      "id": "45aeef41-0714-405d-a8c7-2f7fd76576b8",
+      "name": "9. Marcar como Publicado",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1616,
+        1104
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "y2PUK9Z7Wvv3rbXM",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "0f8e2706-ee3e-4c8b-bce6-b4b487a82077",
+      "name": "9b. No aprobado: queda en revisión",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1616,
+        1280
+      ]
+    }
+  ],
+  "connections": {
+    "7. Trigger: fila marcada como Aprobado": {
+      "main": [
+        [
+          {
+            "node": "8. Filtro final: ¿Aprobado = true?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Filtro final: ¿Aprobado = true?": {
+      "main": [
+        [
+          {
+            "node": "9. Marcar como Publicado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "9b. No aprobado: queda en revisión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f9ac74fcb145db4332a4ce6697bd4628627a99a56ad03a88dae240bc06a4a1a4"
+  }
+}
